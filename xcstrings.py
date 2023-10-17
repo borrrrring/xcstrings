@@ -32,6 +32,8 @@ def main():
 
     # Traverse all keys
     for key_index, key in enumerate(strings_keys):
+        if not key:
+            continue
         # Get the current time
         now = datetime.datetime.now()
         # Format the current time
