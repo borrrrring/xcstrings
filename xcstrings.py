@@ -5,7 +5,7 @@ import datetime
 from googletrans import Translator
 
 # Global variables
-languageIdentifiers = ['en', 'zh-Hans', 'zh-Hant']
+languageIdentifiers = ['en', 'zh-Hans', 'zh-Hant', 'ja']
 languageIdentifiersForGoogle = {
     'en': 'en', 
     'zh-Hans': 'zh-CN', 
@@ -28,15 +28,15 @@ def main():
         json_data = json.load(f)
     strings_keys = list(json_data["strings"].keys())
 
-    print(f"\n found {len(strings_keys)} keys\n")
+    print(f"\nFound {len(strings_keys)} keys\n")
 
     # Traverse all keys
-    for key in strings_keys:
+    for key_index, key in enumerate(strings_keys):
         # Get the current time
         now = datetime.datetime.now()
         # Format the current time
         now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-        print(now_str, key)
+        print(f"[{now_str}]", f"{key_index + 1}/{len(strings_keys)}: {key}")
 
         strings = json_data["strings"][key]
         # The strings field is empty.
