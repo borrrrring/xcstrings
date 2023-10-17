@@ -5,21 +5,27 @@ import datetime
 from googletrans import Translator
 
 # Global variables
-languageIdentifiers = ['en', 'zh-Hans', 'zh-Hant', 'ja']
+languageIdentifiers = ['en', 'zh-Hans', 'zh-Hant']
 languageIdentifiersForGoogle = {
-    'en': 'en', 
-    'zh-Hans': 'zh-CN', 
+    'zh-Hans': 'zh', 
     'zh-Hant': 'zh-TW',
-    'ja': 'ja'
+    'zh-HK': 'zh-TW',
+    'pt-PT': 'pt'
 }
 
-def translate_string(string, source_language, target_language):
-    if source_language == target_language:
-        return string
+# Use automatic detection source language for translation
+def translate_string(string, target_language):
     translator = Translator()
-    src = languageIdentifiersForGoogle[source_language]
-    dest = languageIdentifiersForGoogle[target_language]
-    translation = translator.translate(string, src=src, dest=dest)
+    
+    if target_language not in languageIdentifiersForGoogle:
+        dest = target_language
+    else:
+        dest = languageIdentifiersForGoogle[target_language]
+
+    translation = translator.translate(string, dest=dest)
+
+    print(f"{target_language}: {translation.text}")
+
     return translation.text
 
 def main():
@@ -38,7 +44,7 @@ def main():
         now = datetime.datetime.now()
         # Format the current time
         now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{now_str}]", f"{key_index + 1}/{len(strings_keys)}: {key}")
+        print(f"[{now_str}]\n", f"🔥{key_index + 1}/{len(strings_keys)}: {key}")
 
         strings = json_data["strings"][key]
         # The strings field is empty.
@@ -60,16 +66,16 @@ def main():
                 localizations[language] = {
                     "stringUnit": {
                         "state": "translated",
-                        "value": translate_string(key, json_data["sourceLanguage"], language),
+                        "value": translate_string(key, language),
                     }
                 }
 
         strings["localizations"] = localizations
         json_data["strings"][key] = strings
 
-    # Save the modified JSON file
-    with open(json_path, "w") as f:
-        json.dump(json_data, f, indent=4)
+        # Save the modified JSON file every time to prevent flashback.
+        with open(json_path, "w") as f:
+            json.dump(json_data, f, indent=4)
 
 
 if __name__ == "__main__":
