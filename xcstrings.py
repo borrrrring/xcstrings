@@ -23,11 +23,11 @@ def translate_string(string, target_language):
     else:
         dest = languageIdentifiersForGoogle[target_language]
 
-    source_language = translator.detect(string).lang
-    if source_language == dest:
-        return string
-
     try:
+        source_language = translator.detect(string).lang
+        if source_language == dest:
+            return string
+        
         translation = translator.translate(string, dest=dest)
     except Exception as e:
         print(e)
