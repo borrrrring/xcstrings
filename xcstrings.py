@@ -1,5 +1,6 @@
 import json
 import datetime
+import time
 
 # pip install --upgrade googletrans==4.0.0rc1
 from googletrans import Translator
@@ -22,11 +23,17 @@ def translate_string(string, target_language):
     else:
         dest = languageIdentifiersForGoogle[target_language]
 
-    translation = translator.translate(string, dest=dest)
+    def translate():
+        try:
+            translation = translator.translate(string, dest=dest)
+            print(f"{target_language}: {translation.text}")
+            return translation.text
+        except Exception as e:
+            print("翻译超时，等待3秒后重新执行翻译...")
+            time.sleep(2)
+            return translate()
 
-    print(f"{target_language}: {translation.text}")
-
-    return translation.text
+    return translate()
 
 def main():
     # Get all the keys of strings
