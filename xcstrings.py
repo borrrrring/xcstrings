@@ -8,7 +8,7 @@ from googletrans import Translator
 # Global variables
 languageIdentifiers = ['en', 'zh-Hans', 'zh-Hant']
 languageIdentifiersForGoogle = {
-    'zh-Hans': 'zh', 
+    'zh-Hans': 'zh-CN', 
     'zh-Hant': 'zh-TW',
     'zh-HK': 'zh-TW',
     'pt-PT': 'pt'
@@ -23,17 +23,21 @@ def translate_string(string, target_language):
     else:
         dest = languageIdentifiersForGoogle[target_language]
 
-    def translate():
-        try:
-            translation = translator.translate(string, dest=dest)
-            print(f"{target_language}: {translation.text}")
-            return translation.text
-        except Exception as e:
-            print("翻译超时，等待3秒后重新执行翻译...")
-            time.sleep(2)
-            return translate()
+    source_language = translator.detect(string).lang
+    if source_language == dest:
+        return string
 
-    return translate()
+    try:
+        translation = translator.translate(string, dest=dest)
+    except Exception as e:
+        print(e)
+        print("翻译超时，等待3秒后重新执行翻译...")
+        time.sleep(2)
+        return translate_string(string, target_language)
+        
+
+    print(f"{target_language}: {translation.text}")
+    return translation.text
 
 def main():
     # Get all the keys of strings
