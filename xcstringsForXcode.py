@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import datetime
 import time
@@ -86,7 +87,6 @@ def main():
                 else:
                    sourceLanguage = json_data["sourceLanguage"]
                    if sourceLanguage not in localizations:
-                       print("String is empty in source language")
                        continue
                    else:
                     sourceString = localizations[sourceLanguage]["stringUnit"]["value"]
@@ -96,14 +96,12 @@ def main():
                             "value": translate_string(sourceString, language),
                         }
                     }
-            else:
-                print(f"Language: {language} has been translated")
 
         strings["localizations"] = localizations
         json_data["strings"][key] = strings
 
         # Save the modified JSON file every time to prevent flashback.
-        with open(json_path, "w") as f:
+        with open(json_path, "w", encoding="ascii") as f:
             json.dump(json_data, f, indent=4)
 
 def is_infoplist(json_path):
@@ -122,7 +120,10 @@ def is_infoplist(json_path):
     return filename == 'InfoPlist.xcstrings'
 
 if __name__ == "__main__":
-    # Input json_path from terminal
-    json_path = input("Enter the string Catalog (.xcstrings) file path:\n")
+    if len(sys.argv) < 2:
+        print("请输入项目路径")
+        sys.exit(1)
+
+    json_path = sys.argv[1]
     isInfoPlist = is_infoplist(json_path)
     main()
