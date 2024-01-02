@@ -2,17 +2,28 @@ import os
 import json
 import datetime
 import time
+import re
 
-# pip install --upgrade googletrans==4.0.0rc1
-from googletrans import Translator
+# pip install -q -U google-generativeai
+import google.generativeai as genai
+
 # pip install opencc-python-reimplemented
 from opencc import OpenCC 
+
+GOOGLE_API_KEY=''
+
+if not GOOGLE_API_KEY:
+    raise ValueError("The GOOGLE_API_KEY needs to be set in [Google AI Studio](https://makersuite.google.com)!")
+
+genai.configure(api_key=GOOGLE_API_KEY)
+
+model = genai.GenerativeModel('gemini-pro')
 
 openCC = OpenCC('s2t')
 
 # Global variables
 is_info_plist = False
-LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant', 'es', 'pt-PT', 'ja', 'ko']
+LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant']#, 'es', 'pt-PT', 'ja', 'ko']
 LANGUAGE_IDENTIFIERS_FOR_GOOGLE = {
     'zh-Hans': 'zh-CN', 
     'zh-Hant': 'zh-TW',
@@ -22,27 +33,42 @@ LANGUAGE_IDENTIFIERS_FOR_GOOGLE = {
 
 # Use automatic detection source language for translation
 def translate_string(string, target_language):
-    translator = Translator()
-    
     if target_language not in LANGUAGE_IDENTIFIERS_FOR_GOOGLE:
         dest = target_language
     else:
         dest = LANGUAGE_IDENTIFIERS_FOR_GOOGLE[target_language]
 
+    prompt = """
+    You are a professional, authentic translation engine, only returns translations.
+    For example:
+    <Start>
+    Hello <Keep This Symbol>
+    World <Keep This Symbol>
+    <End>
+    The translation is:
+    <Start>
+    你好<Keep This Symbol>
+    世界<Keep This Symbol>
+    <End>
+
+    Translate the content to {} Language:
+
+    <Start>{}<End>
+    """.format(dest, string)
+
     try:
-        source_language = translator.detect(string).lang
-        if source_language == dest:
-            return string
-        
-        translation = translator.translate(string, dest=dest)
+        response = model.generate_content(prompt)
+        result = response.text
+        match = re.search('<Start>(.*?)<End>', result, re.DOTALL)
+        if match: 
+            translated_text = match.group(1).strip()
+            print(f"{dest}: {translated_text}")
+            return translated_text
     except Exception as e:
-        print(e)
+        print(f'{type(e).__name__}: {e}')
         print("Translation timeout, retrying after 1 seconds...")
         time.sleep(1)
         return translate_string(string, target_language)
-        
-    print(f"{target_language}: {translation.text}")
-    return translation.text
 
 def main():
     # Get all the keys of strings
@@ -129,6 +155,7 @@ def main():
             else:
                 print(f"{language} has been translated")
 
+        # strings["localizations"] = {}
         strings["localizations"] = localizations
         json_data["strings"][key] = strings
 
