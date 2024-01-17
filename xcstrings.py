@@ -12,7 +12,7 @@ openCC = OpenCC('s2t')
 
 # Global variables
 is_info_plist = False
-LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant', 'es', 'pt-PT', 'ja', 'ko']
+LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant']
 LANGUAGE_IDENTIFIERS_FOR_GOOGLE = {
     'zh-Hans': 'zh-CN', 
     'zh-Hant': 'zh-TW',
@@ -136,22 +136,13 @@ def main():
         with open(json_path, "w", encoding='utf-8') as f:
             json.dump(json_data, ensure_ascii=False, fp=f, indent=4)
 
-def is_infoplist(json_path):
-    """
-    Determine whether the file name is "InfoPlist.xcstrings" 
-    
-    Args: 
-        json_path: File path 
-    Returns: 
-        True: Yes "InfoPlist.xcstrings" 
-        False: Not "InfoPlist.xcstrings" 
-    """
 
-    filename = os.path.basename(json_path)
-    return filename == 'InfoPlist.xcstrings'
+def is_infoplist(json_path):
+    filename, _ = os.path.splitext(os.path.basename(json_path))
+    return filename == 'InfoPlist'
 
 if __name__ == "__main__":
     # Input json_path from terminal
-    json_path = input("Enter the string Catalog (.xcstrings) file path:\n")
+    json_path = input("Enter the string Catalog (.xcstrings) file path:\n").strip(' "\'')
     is_info_plist = is_infoplist(json_path)
     main()

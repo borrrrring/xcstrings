@@ -3,6 +3,8 @@ import json
 import datetime
 import time
 import re
+from argparse import ArgumentParser
+import google.api_core.exceptions
 
 # pip install -q -U google-generativeai
 import google.generativeai as genai
@@ -23,21 +25,10 @@ openCC = OpenCC('s2t')
 
 # Global variables
 is_info_plist = False
-LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant']#, 'es', 'pt-PT', 'ja', 'ko']
-LANGUAGE_IDENTIFIERS_FOR_GOOGLE = {
-    'zh-Hans': 'zh-CN', 
-    'zh-Hant': 'zh-TW',
-    'zh-HK': 'zh-TW',
-    'pt-PT': 'pt'
-}
+LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant']
 
 # Use automatic detection source language for translation
 def translate_string(string, target_language):
-    if target_language not in LANGUAGE_IDENTIFIERS_FOR_GOOGLE:
-        dest = target_language
-    else:
-        dest = LANGUAGE_IDENTIFIERS_FOR_GOOGLE[target_language]
-
     prompt = """
     You are a professional, authentic translation engine, only returns translations.
     For example:
@@ -54,16 +45,18 @@ def translate_string(string, target_language):
     Translate the content to {} Language:
 
     <Start>{}<End>
-    """.format(dest, string)
+    """.format(target_language, string)
 
     try:
         response = model.generate_content(prompt)
         result = response.text
         match = re.search('<Start>(.*?)<End>', result, re.DOTALL)
-        if match: 
+        if match:
             translated_text = match.group(1).strip()
-            print(f"{dest}: {translated_text}")
+            print(f"{target_language}: {translated_text}")
             return translated_text
+    except google.api_core.exceptions.PermissionDenied:
+        raise ValueError("The GOOGLE_API_KEY is invalid. Please double check your GOOGLE_API_KEY and make sure the corresponding Google API is enabled.")
     except Exception as e:
         print(f'{type(e).__name__}: {e}')
         print("Translation timeout, retrying after 1 seconds...")
@@ -164,21 +157,11 @@ def main():
             json.dump(json_data, ensure_ascii=False, fp=f, indent=4)
 
 def is_infoplist(json_path):
-    """
-    Determine whether the file name is "InfoPlist.xcstrings" 
-    
-    Args: 
-        json_path: File path 
-    Returns: 
-        True: Yes "InfoPlist.xcstrings" 
-        False: Not "InfoPlist.xcstrings" 
-    """
-
-    filename = os.path.basename(json_path)
-    return filename == 'InfoPlist.xcstrings'
+    filename, _ = os.path.splitext(os.path.basename(json_path))
+    return filename == 'InfoPlist'
 
 if __name__ == "__main__":
     # Input json_path from terminal
-    json_path = input("Enter the string Catalog (.xcstrings) file path:\n")
+    json_path = input("Enter the string Catalog (.xcstrings) file path:\n").strip(' "\'')
     is_info_plist = is_infoplist(json_path)
     main()

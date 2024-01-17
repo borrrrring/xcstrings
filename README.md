@@ -19,6 +19,8 @@ The requirements.txt file should contain: (其中requirements.txt文件应包含
 
 You can find the setup guide here [Google AI Studio](https://makersuite.google.com). (您可以在这里 [Google AI Studio](https://makersuite.google.com) 找到相关的设置引导。)
 
+For the error of "The caller does not have permission", maybe you can find help at [Gemini, MakerSuite, API Keys, and "The caller does not have permission"](https://freedium.cfd/https://medium.com/@afirstenberg/gemini-makersuite-api-keys-and-the-caller-does-not-have-permission-c75bedcbe886).（对于“The caller does not have permission”的错误，也许您可以在[Gemini, MakerSuite, API Keys, and "The caller does not have permission"](https://freedium.cfd/https://medium.com/@afirstenberg/gemini-makersuite-api-keys-and-the-caller-does-not-have-permission-c75bedcbe886)找到帮助）
+
 Replace `GOOGLE_API_KEY` in `xcstrings_Gemini.py` with your API key. (替代 `xcstrings_Gemini.py` 中的 `GOOGLE_API_KEY` 为你的API密钥。)
 
 
