@@ -5,6 +5,7 @@ import time
 import re
 from argparse import ArgumentParser
 import google.api_core.exceptions
+import requests
 
 # pip install -q -U google-generativeai
 import google.generativeai as genai
@@ -25,12 +26,12 @@ openCC = OpenCC('s2t')
 
 # Global variables
 is_info_plist = False
-LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant']
+LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant', 'es', 'ja', 'ko', 'pt-PT']#, 'ar', 'de', 'es', 'fr', 'ja', 'ko', 'pt-PT', 'ru', 'tr']
 
 # Use automatic detection source language for translation
 def translate_string(string, target_language):
     prompt = """
-    You are a professional, authentic translation engine, only returns translations.
+    You are a professional, authentic translation engine who can help me translate for iOS app, only returns translations.
     For example:
     <Start>
     Hello <Keep This Symbol>
@@ -47,9 +48,33 @@ def translate_string(string, target_language):
     <Start>{}<End>
     """.format(target_language, string)
 
+    headers = {
+        'Content-Type': 'application/json',
+    }
+
+    params = {
+        'key': GOOGLE_API_KEY,
+    }
+
+    json_data = {
+        'contents': [
+            {
+                'parts': [
+                    {
+                        'text': prompt,
+                    },
+                ],
+            },
+        ],
+    }
+
     try:
-        response = model.generate_content(prompt)
-        result = response.text
+#        response = model.generate_content(prompt)
+#        result = response.text
+        response = requests.post('https://gaga.now.cc/api/proxy/gemini-pro', params=params, headers=headers, json=json_data)
+        response.raise_for_status()  # Raise an error for HTTP error responses
+        data_parsed = response.json()
+        result = get_text_from_json(data_parsed)
         match = re.search('<Start>(.*?)<End>', result, re.DOTALL)
         if match:
             translated_text = match.group(1).strip()
@@ -62,6 +87,27 @@ def translate_string(string, target_language):
         print("Translation timeout, retrying after 1 seconds...")
         time.sleep(1)
         return translate_string(string, target_language)
+
+# Function to safely get the 'text' from parsed JSON data
+def get_text_from_json(data):
+    try:
+        # Ensure 'candidates' is a list and not empty
+        if (isinstance(data.get('candidates'), list) and
+                len(data['candidates']) > 0):
+            
+            content = data['candidates'][0].get('content')
+            # Ensure 'content' has a 'parts' list and it's not empty
+            if content and isinstance(content.get('parts'), list) and len(content['parts']) > 0:
+                
+                text = content['parts'][0].get('text')
+                # Return text if it's a string, otherwise, return a default string or raise an error
+                return text if isinstance(text, str) else 'No text found'
+        # If checks fail, return a default value or raise an error
+        return 'No text found'
+    except Exception as e:
+        print(f'Error retrieving text: {e}')
+        # Handle the exception as needed (e.g., return a default value, raise an error, log the issue, etc.)
+        return 'No text found'
 
 def main():
     # Get all the keys of strings
