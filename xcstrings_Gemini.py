@@ -26,7 +26,7 @@ openCC = OpenCC('s2t')
 
 # Global variables
 is_info_plist = False
-LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant', 'es', 'ja', 'ko', 'pt-PT']#, 'ar', 'de', 'es', 'fr', 'ja', 'ko', 'pt-PT', 'ru', 'tr']
+LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant']#, 'ar', 'de', 'es', 'fr', 'ja', 'ko', 'pt-PT', 'ru', 'tr']
 
 # Use automatic detection source language for translation
 def translate_string(string, target_language):
@@ -71,7 +71,7 @@ def translate_string(string, target_language):
     try:
 #        response = model.generate_content(prompt)
 #        result = response.text
-        response = requests.post('https://gaga.now.cc/api/proxy/gemini-pro', params=params, headers=headers, json=json_data)
+        response = requests.post('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', params=params, headers=headers, json=json_data)
         response.raise_for_status()  # Raise an error for HTTP error responses
         data_parsed = response.json()
         result = get_text_from_json(data_parsed)
