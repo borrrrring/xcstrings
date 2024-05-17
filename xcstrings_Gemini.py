@@ -129,6 +129,14 @@ def main():
 
         strings = json_data["strings"][key]
 
+        # If "ignore xcstrings" is marked in the comment, do not translate.
+        commentKey = "comment"
+
+        if commentKey in strings:
+            commentValue = strings[commentKey]
+            if "ignore xcstrings" in commentValue:
+                continue
+
         # The strings field is empty.
         if not strings:
             strings = {"extractionState": "manual", "localizations": {}}
