@@ -81,6 +81,8 @@ def translate_string(string, target_language):
                 translated_text = match.group(1).strip()
                 print(f"{target_language}: {translated_text}")
                 return translated_text
+            else:
+                continue
         except google.api_core.exceptions.PermissionDenied:
             raise ValueError("The GOOGLE_API_KEY is invalid. Please double check your GOOGLE_API_KEY and make sure the corresponding Google API is enabled.")
         except Exception as e:
