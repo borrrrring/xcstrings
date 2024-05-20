@@ -68,25 +68,27 @@ def translate_string(string, target_language):
         ],
     }
 
-    try:
-#        response = model.generate_content(prompt)
-#        result = response.text
-        response = requests.post('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', params=params, headers=headers, json=json_data)
-        response.raise_for_status()  # Raise an error for HTTP error responses
-        data_parsed = response.json()
-        result = get_text_from_json(data_parsed)
-        match = re.search('<Start>(.*?)<End>', result, re.DOTALL)
-        if match:
-            translated_text = match.group(1).strip()
-            print(f"{target_language}: {translated_text}")
-            return translated_text
-    except google.api_core.exceptions.PermissionDenied:
-        raise ValueError("The GOOGLE_API_KEY is invalid. Please double check your GOOGLE_API_KEY and make sure the corresponding Google API is enabled.")
-    except Exception as e:
-        print(f'{type(e).__name__}: {e}')
-        print("Translation timeout, retrying after 1 seconds...")
-        time.sleep(1)
-        return translate_string(string, target_language)
+    while True:
+        try:
+    #        response = model.generate_content(prompt)
+    #        result = response.text
+            response = requests.post('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', params=params, headers=headers, json=json_data)
+            response.raise_for_status()  # Raise an error for HTTP error responses
+            data_parsed = response.json()
+            result = get_text_from_json(data_parsed)
+            match = re.search('<Start>(.*?)<End>', result, re.DOTALL)
+            if match:
+                translated_text = match.group(1).strip()
+                print(f"{target_language}: {translated_text}")
+                return translated_text
+            else:
+                continue
+        except google.api_core.exceptions.PermissionDenied:
+            raise ValueError("The GOOGLE_API_KEY is invalid. Please double check your GOOGLE_API_KEY and make sure the corresponding Google API is enabled.")
+        except Exception as e:
+            print(f'{type(e).__name__}: {e}')
+            print("Translation timeout, retrying after 1 seconds...")
+            time.sleep(1)
 
 # Function to safely get the 'text' from parsed JSON data
 def get_text_from_json(data):
@@ -128,6 +130,14 @@ def main():
         print(f"[{now_str}]\n", f"🔥{key_index + 1}/{len(strings_keys)}: {key}")
 
         strings = json_data["strings"][key]
+
+        # If "ignore xcstrings" is marked in the comment, do not translate.
+        commentKey = "comment"
+
+        if commentKey in strings:
+            commentValue = strings[commentKey]
+            if "ignore xcstrings" in commentValue:
+                continue
 
         # The strings field is empty.
         if not strings:
