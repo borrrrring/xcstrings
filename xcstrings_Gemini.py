@@ -67,7 +67,8 @@ def translate_string(string, target_language):
             },
         ],
     }
-
+    retry_count = 0
+    
     while True:
         try:
     #        response = model.generate_content(prompt)
@@ -87,8 +88,10 @@ def translate_string(string, target_language):
             raise ValueError("The GOOGLE_API_KEY is invalid. Please double check your GOOGLE_API_KEY and make sure the corresponding Google API is enabled.")
         except Exception as e:
             print(f'{type(e).__name__}: {e}')
-            print("Translation timeout, retrying after 1 seconds...")
-            time.sleep(1)
+            retry_count += 1
+            delay = exponential_backoff(retry_count)
+            print(f"Translation timeout, retrying after {delay:.2f} seconds...")
+            time.sleep(delay)
 
 # Function to safely get the 'text' from parsed JSON data
 def get_text_from_json(data):
@@ -110,6 +113,13 @@ def get_text_from_json(data):
         print(f'Error retrieving text: {e}')
         # Handle the exception as needed (e.g., return a default value, raise an error, log the issue, etc.)
         return 'No text found'
+
+import random
+
+def exponential_backoff(retry_count, base_delay=1, max_delay=60):
+    exponential_delay = min(base_delay * (2 ** retry_count), max_delay)
+    actual_delay = exponential_delay + random.uniform(0, 1)  # Add jitter
+    return actual_delay
 
 def main():
     # Get all the keys of strings
