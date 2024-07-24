@@ -22,7 +22,7 @@ is_info_plist = False
 LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant']#, 'ja', 'ko', 'ar', 'de', 'es', 'fr', 'ja', 'ko', 'pt-PT', 'ru', 'tr']
 BATCH_SIZE = 4000
 SEPARATOR = "||"
-APPCATEGORY = "Photo Editting Tool"
+APPCATEGORY = ""
 
 if not APPCATEGORY:
     raise ValueError("Setting the APPCATEGORY is crucial for accurate Gemini translations.")
