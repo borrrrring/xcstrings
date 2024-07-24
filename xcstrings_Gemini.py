@@ -3,12 +3,9 @@ import json
 import datetime
 import time
 import re
-from argparse import ArgumentParser
-import google.api_core.exceptions
+from collections import defaultdict
 import requests
-
-# pip install -q -U google-generativeai
-import google.generativeai as genai
+import random
 
 # pip install opencc-python-reimplemented
 from opencc import OpenCC 
@@ -16,37 +13,42 @@ from opencc import OpenCC
 GOOGLE_API_KEY=''
 
 if not GOOGLE_API_KEY:
-    raise ValueError("The GOOGLE_API_KEY needs to be set in [Google AI Studio](https://makersuite.google.com)!")
-
-genai.configure(api_key=GOOGLE_API_KEY)
-
-model = genai.GenerativeModel('gemini-pro')
+    raise ValueError("Don't forget to set your GOOGLE_API_KEY in Google AI Studio (https://makersuite.google.com) for Gemini translations!")
 
 openCC = OpenCC('s2t')
 
 # Global variables
 is_info_plist = False
-LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant']#, 'ar', 'de', 'es', 'fr', 'ja', 'ko', 'pt-PT', 'ru', 'tr']
+LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant']#, 'ja', 'ko', 'ar', 'de', 'es', 'fr', 'ja', 'ko', 'pt-PT', 'ru', 'tr']
+BATCH_SIZE = 4000
+SEPARATOR = "||"
+APPCATEGORY = "Photo Editting Tool"
+
+if not APPCATEGORY:
+    raise ValueError("Setting the APPCATEGORY is crucial for accurate Gemini translations.")
+
+def exponential_backoff(retry_count, base_delay=1, max_delay=60):
+    exponential_delay = min(base_delay * (2 ** retry_count), max_delay)
+    actual_delay = exponential_delay + random.uniform(0, 1)  # Add jitter
+    return actual_delay
 
 # Use automatic detection source language for translation
-def translate_string(string, target_language):
-    prompt = """
-    You are a professional, authentic translation engine who can help me translate for iOS app, only returns translations.
+def translate_batch(strings, target_language):
+    time.sleep(1)
+    prompt = f"""You are a professional localization service provider specializing in translating content for specific languages, cultures, and categories.
     For example:
     <Start>
-    Hello <Keep This Symbol>
-    World <Keep This Symbol>
+    Hello{SEPARATOR}World{SEPARATOR}谷歌
     <End>
     The translation is:
     <Start>
-    你好<Keep This Symbol>
-    世界<Keep This Symbol>
+    你好{SEPARATOR}世界{SEPARATOR}谷歌
     <End>
+    
+    Translate the following content to {target_language} Language for the app categorized as a {APPCATEGORY}. 
+    Each item is separated by {SEPARATOR}. Please keep the same structure in your response.
 
-    Translate the content to {} Language:
-
-    <Start>{}<End>
-    """.format(target_language, string)
+    <Start>{SEPARATOR.join(strings)}<End>"""
 
     headers = {
         'Content-Type': 'application/json',
@@ -67,25 +69,21 @@ def translate_string(string, target_language):
             },
         ],
     }
+
     retry_count = 0
-    
     while True:
         try:
-    #        response = model.generate_content(prompt)
-    #        result = response.text
-            response = requests.post('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', params=params, headers=headers, json=json_data)
-            response.raise_for_status()  # Raise an error for HTTP error responses
+            response = requests.post('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', 
+                                     params=params, headers=headers, json=json_data)
+            response.raise_for_status()
             data_parsed = response.json()
             result = get_text_from_json(data_parsed)
             match = re.search('<Start>(.*?)<End>', result, re.DOTALL)
             if match:
                 translated_text = match.group(1).strip()
-                print(f"{target_language}: {translated_text}")
-                return translated_text
+                return translated_text.split(SEPARATOR)
             else:
                 continue
-        except google.api_core.exceptions.PermissionDenied:
-            raise ValueError("The GOOGLE_API_KEY is invalid. Please double check your GOOGLE_API_KEY and make sure the corresponding Google API is enabled.")
         except Exception as e:
             print(f'{type(e).__name__}: {e}')
             retry_count += 1
@@ -114,120 +112,178 @@ def get_text_from_json(data):
         # Handle the exception as needed (e.g., return a default value, raise an error, log the issue, etc.)
         return 'No text found'
 
-import random
+def process_others_translations(json_data, language, keys, strings_to_translate_list):
+    translated_strings = translate_batch(strings_to_translate_list, language)
+    for key, translated in zip(keys, translated_strings):
+        print(f"{language}: {key} ==> {translated}")
+        json_data["strings"][key]["localizations"][language] = {
+            "stringUnit": {
+                "state": "translated",
+                "value": translated,
+            }
+        }
 
-def exponential_backoff(retry_count, base_delay=1, max_delay=60):
-    exponential_delay = min(base_delay * (2 ** retry_count), max_delay)
-    actual_delay = exponential_delay + random.uniform(0, 1)  # Add jitter
-    return actual_delay
+def process_english_translations(json_data, english_strings, strings_needing_english, strings_to_translate):
+    english_translations = translate_batch(english_strings, "en")
+    for (key, original), translated in zip(strings_needing_english, english_translations):
+        print(f"en: {key} ==> {translated}")
+        json_data["strings"][key]["localizations"]["en"] = {
+            "stringUnit": {
+                "state": "translated",
+                "value": translated,
+            }
+        }
+        # Add the English translation to other language queues
+        for language in LANGUAGE_IDENTIFIERS:
+            if language not in ["en", "zh-Hans", "zh-Hant"]:
+                strings_to_translate[(language, key)] = translated
+
+def clear():
+    # for windows
+    if os.name == 'nt':
+        _ = os.system('cls')
+    # for mac and linux(here, os.name is 'posix')
+    else:
+        _ = os.system('clear')
+
+def is_info_plist(file_path):
+    return os.path.basename(file_path).lower() == 'infoplist.xcstrings'
 
 def main():
+    try:
     # Get all the keys of strings
-    with open(json_path, "r", encoding="utf-8") as f:
-        json_data = json.load(f)
-    strings_keys = list(json_data["strings"].keys())
+        with open(json_path, "r", encoding="utf-8") as f:
+            json_data = json.load(f)
+    except Exception as e:
+        print(f"Error decoding JSON data: {e}")
+        return
 
-    print(f"\nFound {len(strings_keys)} keys\n")
+    # Clearing the Screen
+    clear()
+    
+    print(f"Begin the localization process for the app categorized as a {APPCATEGORY} at path: \n{json_path}")
+    global is_info_plist
+    is_info_plist_file = is_info_plist(json_path)
+    strings_to_translate = {}
+    strings_needing_english = []
+    source_language = json_data["sourceLanguage"]
 
-    # Traverse all keys
-    for key_index, key in enumerate(strings_keys):
-        if not key:
+    for key, strings in json_data["strings"].items():
+        if "comment" in strings and "ignore xcstrings" in strings["comment"]:
             continue
-        # Get the current time
-        now = datetime.datetime.now()
-        # Format the current time
-        now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{now_str}]\n", f"🔥{key_index + 1}/{len(strings_keys)}: {key}")
-
-        strings = json_data["strings"][key]
-
-        # If "ignore xcstrings" is marked in the comment, do not translate.
-        commentKey = "comment"
-
-        if commentKey in strings:
-            commentValue = strings[commentKey]
-            if "ignore xcstrings" in commentValue:
-                continue
-
-        # The strings field is empty.
         if not strings:
             strings = {"extractionState": "manual", "localizations": {}}
-        
-        # The localizations field is empty
+
         if "localizations" not in strings:
             strings["localizations"] = {}
-    
-        localizations = strings["localizations"]
 
-        for language in LANGUAGE_IDENTIFIERS:
-            # Determine whether localizations contains the corresponding language key
-            if language not in localizations:
-                if not is_info_plist:
-                    source_language = json_data["sourceLanguage"]
-                    # If not included, use Google Gemini to fill in "localizations" after translation.
+        json_data["strings"][key] = strings
+
+        localizations = strings["localizations"]
+        
+        if is_info_plist_file:
+            # if key == "CFBundleName":
+            #     continue
+            # else:
+                if source_language not in localizations:
+                    print(f"Error: Source language '{source_language}' not found in InfoPlist.xcstrings")
+                    return
+                else:
                     if source_language == "zh-Hans":
-                        source_string = key
+                        source_string = localizations[source_language]["stringUnit"]["value"]
                     else:
-                       source_string = (
+                        source_string = (
                             localizations["en"]["stringUnit"]["value"]
                             if "en" in localizations
                             else key
-                        ) 
-                    if language == source_language:
-                        translated_string = source_string
-                    else:
-                        if source_language == "zh-Hans" and language == "zh-Hant":
-                            translated_string = openCC.convert(source_string)
-                        else:
-                            translated_string = translate_string(source_string, language)
-
-                    localizations[language] = {
-                        "stringUnit": {
-                            "state": "translated",
-                            "value": translated_string,
-                        }
-                    }
-                else:
-                    source_language = json_data["sourceLanguage"]
-                    if source_language not in localizations:
-                        print("String is empty in source language")
-                        continue
-                    else:
-                        if source_language == "zh-Hans":
-                            source_string = localizations[source_language]["stringUnit"]["value"]
-                        else:
-                            source_string = (
-                                localizations["en"]["stringUnit"]["value"]
-                                if "en" in localizations
-                                else key
-                            ) 
-                        if source_language == "zh-Hans" and language == "zh-Hant":
-                            translated_string = openCC.convert(source_string)
-                        else:
-                            translated_string = translate_string(source_string, language)
-                        localizations[language] = {
-                            "stringUnit": {
-                                "state": "translated",
-                                "value": translated_string,
-                            }
-                        }
+                        )
+                    
+                strings_needing_english.append((key, source_string))
+        else:
+            if "en" in localizations:
+                source_string = localizations["en"]["stringUnit"]["value"]
+            elif source_language == "zh-Hans":
+                source_string = key
+                strings_needing_english.append((key, source_string))
             else:
-                print(f"{language} has been translated")
+                source_string = localizations[source_language]["stringUnit"]["value"] if source_language in localizations else key
+                strings_needing_english.append((key, source_string))
+        
+        for language in LANGUAGE_IDENTIFIERS:
+            if language not in localizations:
+                if language == source_language:
+                    translated_string = source_string
+                elif source_language == "zh-Hans" and language == "zh-Hant":
+                    translated_string = OpenCC('s2t').convert(source_string)
+                elif language == "en" and source_language != "en":
+                    continue  # We'll handle English translations separately
+                else:
+                    strings_to_translate[(language, key)] = source_string
+                    continue
 
-        # strings["localizations"] = {}
-        strings["localizations"] = localizations
-        json_data["strings"][key] = strings
+                localizations[language] = {
+                    "stringUnit": {
+                        "state": "translated",
+                        "value": translated_string,
+                    }
+                }
+            else:
+                print(f"{language}: {{{key}: {source_string}}} has been translated")
 
-        # Save the modified JSON file every time to prevent flashback.
-        with open(json_path, "w", encoding='utf-8') as f:
-            json.dump(json_data, ensure_ascii=False, fp=f, indent=4)
+    # Handle English translations first
+    if strings_needing_english:
+        english_strings = [s[1] for s in strings_needing_english]
+        
+        # Loop through the strings in chunks
+        start_index = 0
+        while start_index < len(english_strings):
+        # Determine the end index for the current chunk
+            combined_string = ""
+            end_index = start_index
+            while end_index < len(english_strings) and len(combined_string + english_strings[end_index] + SEPARATOR) <= BATCH_SIZE:
+                combined_string += english_strings[end_index] + SEPARATOR
+                end_index += 1
+            
+            # Remove the trailing separator
+            combined_string = combined_string.rstrip(SEPARATOR)
+            # Process the current chunk of translations
+            process_english_translations(json_data, english_strings[start_index:end_index], strings_needing_english[start_index:end_index], strings_to_translate)
+            # Update the start index for the next chunk
+            start_index = end_index
+        
 
-def is_infoplist(json_path):
-    filename, _ = os.path.splitext(os.path.basename(json_path))
-    return filename == 'InfoPlist'
+    # Process any remaining strings for each language
+    if strings_to_translate:
+        languages = set(lang for lang, _ in strings_to_translate.keys())
+        for language in languages:
+            lang_strings = {key: value for (lang, key), value in strings_to_translate.items() if lang == language}
+            if not lang_strings:
+                continue
+            
+            keys = list(lang_strings.keys())
+            strings_to_translate_list = list(lang_strings.values())
+            # Loop through the strings in chunks
+            start_index = 0
+            while start_index < len(strings_to_translate_list):
+            # Determine the end index for the current chunk
+                combined_string = ""
+                end_index = start_index
+                while end_index < len(strings_to_translate_list) and len(combined_string + strings_to_translate_list[end_index] + SEPARATOR) <= BATCH_SIZE:
+                    combined_string += strings_to_translate_list[end_index] + SEPARATOR
+                    end_index += 1
+                
+                # Remove the trailing separator
+                combined_string = combined_string.rstrip(SEPARATOR)
+                # Process the current chunk of translations
+                process_others_translations(json_data, language, keys[start_index:end_index], strings_to_translate_list[start_index:end_index])
+                # Update the start index for the next chunk
+                start_index = end_index
+
+    # Save the modified JSON file
+    with open(json_path, "w", encoding='utf-8') as f:
+        json.dump(json_data, ensure_ascii=False, fp=f, indent=4)
 
 if __name__ == "__main__":
     # Input json_path from terminal
     json_path = input("Enter the string Catalog (.xcstrings) file path:\n").strip(' "\'')
-    is_info_plist = is_infoplist(json_path)
     main()
