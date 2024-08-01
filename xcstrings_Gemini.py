@@ -25,9 +25,6 @@ BATCH_SIZE = 4000
 SEPARATOR = "||"
 APPCATEGORY = ""
 
-if not APPCATEGORY:
-    raise ValueError("Setting the APPCATEGORY is crucial for accurate Gemini translations.")
-
 def exponential_backoff(retry_count, base_delay=1, max_delay=60):
     exponential_delay = min(base_delay * (2 ** retry_count), max_delay)
     actual_delay = exponential_delay + random.uniform(0, 1)  # Add jitter
@@ -52,7 +49,12 @@ def translate_batch(strings, target_language):
     你好{SEPARATOR}世界{SEPARATOR}谷歌
     <End>
     
-    Translate the following content to {target_language} Language for the app categorized as a {APPCATEGORY}. 
+    Translate the following content to {target_language} Language"""
+    
+    if APPCATEGORY:
+        prompt += f" for the app categorized as a {APPCATEGORY}."
+        
+    prompt += f"""
     Each item is separated by {SEPARATOR}. Please keep the same structure in your response.
 
     <Start>{SEPARATOR.join(strings)}<End>"""
@@ -179,7 +181,10 @@ def main():
     # Clearing the Screen
     clear()
     
-    print(f"Begin the localization process for the app categorized as a {APPCATEGORY} at path: \n{json_path}")
+    if not APPCATEGORY:
+        print(f"Begin the localization process at path: \n{json_path}")
+    else:
+        print(f"Begin the localization process for the app categorized as a {APPCATEGORY} at path: \n{json_path}")
     global is_info_plist
     is_info_plist_file = is_info_plist(json_path)
     strings_to_translate = {}
@@ -304,4 +309,12 @@ def main():
 if __name__ == "__main__":
     # Input json_path from terminal
     json_path = input("Enter the string Catalog (.xcstrings) file path:\n").strip(' "\'')
-    main()
+    json_path = json_path.replace('\\ ', ' ')
+    # 检查文件是否存在
+    if os.path.exists(json_path):
+        print(f"File found at: {json_path}")
+        # 继续处理文件
+        APPCATEGORY = input("Enter the app category or name for precise Gemini translations:\n").strip(' "\'')
+        main()
+    else:
+        print(f"Error: No such file or directory: '{json_path}'")
