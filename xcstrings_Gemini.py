@@ -2,6 +2,7 @@ import os
 import json
 import datetime
 import time
+import threading
 import re
 from collections import defaultdict
 import requests
@@ -31,6 +32,12 @@ def exponential_backoff(retry_count, base_delay=1, max_delay=60):
     exponential_delay = min(base_delay * (2 ** retry_count), max_delay)
     actual_delay = exponential_delay + random.uniform(0, 1)  # Add jitter
     return actual_delay
+
+def print_elapsed_time(start_time, stop_event):
+    while not stop_event.is_set():
+        elapsed_time = time.time() - start_time
+        print(f"Elapsed time: {elapsed_time:.2f} seconds")
+        time.sleep(1)
 
 # Use automatic detection source language for translation
 def translate_batch(strings, target_language):
@@ -73,10 +80,19 @@ def translate_batch(strings, target_language):
     retry_count = 0
     while True:
         try:
+            start_time = time.time()
+            stop_event = threading.Event()
+            timer_thread = threading.Thread(target=print_elapsed_time, args=(start_time, stop_event))
+            timer_thread.start()
+            print("Starting translation request...")
             response = requests.post('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', 
                                      params=params, headers=headers, json=json_data)
+            stop_event.set()
+            timer_thread.join()
             response.raise_for_status()
+            print("Request successful!")
             data_parsed = response.json()
+            print("Response data:", data_parsed)
             result = get_text_from_json(data_parsed)
             match = re.search('<Start>(.*?)<End>', result, re.DOTALL)
             if match:
@@ -85,6 +101,8 @@ def translate_batch(strings, target_language):
             else:
                 continue
         except Exception as e:
+            stop_event.set()
+            timer_thread.join()
             print(f'{type(e).__name__}: {e}')
             retry_count += 1
             delay = exponential_backoff(retry_count)
