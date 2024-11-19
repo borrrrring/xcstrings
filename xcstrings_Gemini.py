@@ -14,7 +14,9 @@ from opencc import OpenCC
 GOOGLE_API_KEY=''
 
 if not GOOGLE_API_KEY:
-    raise ValueError("Don't forget to set your GOOGLE_API_KEY in Google AI Studio (https://makersuite.google.com) for Gemini translations!")
+    GOOGLE_API_KEY = input("Enter your Google API Key for Gemini translations:\n").strip()
+    if not GOOGLE_API_KEY:
+        raise ValueError("Don't forget to set your GOOGLE_API_KEY in Google AI Studio (https://makersuite.google.com) for Gemini translations!")
 
 openCC = OpenCC('s2t')
 
@@ -185,17 +187,37 @@ def main():
         print(f"Begin the localization process at path: \n{json_path}")
     else:
         print(f"Begin the localization process for the app categorized as a {APPCATEGORY} at path: \n{json_path}")
+
+    global LANGUAGE_IDENTIFIERS
+    # Get language identifiers from the user
+    language_input = input("Enter the language codes to translate into (comma-separated), e.g., 'en, zh-Hans, zh-Hant' (default is ['en', 'zh-Hans', 'zh-Hant']):\n").strip()
+    if language_input:
+        LANGUAGE_IDENTIFIERS = [lang.strip() for lang in language_input.split(',')]
+    else:
+        print("No languages entered. Using default languages ['en', 'zh-Hans', 'zh-Hant'].")
+        LANGUAGE_IDENTIFIERS = ['en', 'zh-Hans', 'zh-Hant']
+
     global is_info_plist
     is_info_plist_file = is_info_plist(json_path)
     strings_to_translate = {}
     strings_needing_english = []
     source_language = json_data["sourceLanguage"]
 
+    mark_untranslated_manual = input("Do you want to mark untranslated parts as 'extractionState': 'manual'? (y/n, default is 'n'):\n").strip().lower()
+    if mark_untranslated_manual == 'y':
+        add_extraction_state = True
+    else:
+        add_extraction_state = False
+
     for key, strings in json_data["strings"].items():
-        if "comment" in strings and "ignore xcstrings" in strings["comment"]:
+        if "comment" in strings and "ignore xcstrings" in strings["comment"] or \
+            ("shouldTranslate" in strings and strings["shouldTranslate"] == False):
             continue
         if not strings:
-            strings = {"extractionState": "manual", "localizations": {}}
+            if add_extraction_state:
+                strings = {"extractionState": "manual", "localizations": {}}
+            else:
+                strings = {"localizations": {}}
 
         if "localizations" not in strings:
             strings["localizations"] = {}
