@@ -89,7 +89,7 @@ def translate_batch(strings, target_language):
             timer_thread = threading.Thread(target=print_elapsed_time, args=(start_time, stop_event))
             timer_thread.start()
             print("Starting translation request...")
-            response = requests.post('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', 
+            response = requests.post('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent', 
                                      params=params, headers=headers, json=json_data)
             stop_event.set()
             timer_thread.join()
