@@ -225,7 +225,13 @@ def main():
         json_data["strings"][key] = strings
 
         localizations = strings["localizations"]
-        
+
+        # Plural entries nest values under variations.plural, not stringUnit,
+        # so the stringUnit reads below raise KeyError and abort the run.
+        if any("variations" in loc for loc in localizations.values()):
+            print(f"Skipping plural entry '{key}': per-variation translation is not supported")
+            continue
+
         if is_info_plist_file:
             # if key == "CFBundleName":
             #     continue
